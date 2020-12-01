@@ -44,8 +44,6 @@ implements: ERC20
 
 
 interface DetailedERC20:
-    def name() -> String[42]: view
-    def symbol() -> String[20]: view
     def decimals() -> uint256: view
 
 
@@ -151,12 +149,12 @@ PERMIT_TYPE_HASH: constant(bytes32) = keccak256("Permit(address owner,address sp
 
 
 @external
-def __init__(
+def initialize(
     _token: address,
     _governance: address,
-    _rewards: address,
-    _nameOverride: String[64],
-    _symbolOverride: String[32],
+    _name: String[64],
+    _symbol: String[32],
+    _guardian: address = msg.sender,
 ):
     """
     @notice
@@ -165,31 +163,20 @@ def __init__(
         The performance fee is set to 10% of yield, per Strategy.
         The management fee is set to 2%, per year.
         There is no initial deposit limit.
-    @dev
-        If `_nameOverride` is not specified, the name will be 'yearn'
-        combined with the name of _token.
-
-        If `_symbolOverride` is not specified, the symbol will be 'y'
-        combined with the symbol of _token.
     @param _token The token that may be deposited into this Vault.
     @param _governance The address authorized for governance interactions.
-    @param _rewards The address to distribute rewards to.
-    @param _nameOverride Specify a custom Vault name. Leave empty for default choice.
-    @param _symbolOverride Specify a custom Vault symbol name. Leave empty for default choice.
+    @param _name Specify a custom Vault name. Leave empty for default choice.
+    @param _symbol Specify a custom Vault symbol name. Leave empty for default choice.
+    @param _guardian The address authorized for guardian interactions. Defaults to caller.
     """
+    assert self.token == ERC20(ZERO_ADDRESS)  # NOTE: Ensures this can only be called once
     self.token = ERC20(_token)
-    if _nameOverride == "":
-        self.name = concat(DetailedERC20(_token).symbol(), " yVault")
-    else:
-        self.name = _nameOverride
-    if _symbolOverride == "":
-        self.symbol = concat("yv", DetailedERC20(_token).symbol())
-    else:
-        self.symbol = _symbolOverride
+    self.name = _name
+    self.symbol = _symbol
     self.decimals = DetailedERC20(_token).decimals()
     self.governance = _governance
-    self.rewards = _rewards
-    self.guardian = msg.sender
+    self.rewards = _governance  # Can re-configure later
+    self.guardian = _guardian
     self.performanceFee = 1000  # 10% of yield (per Strategy)
     self.managementFee = 200  # 2% per year
     self.depositLimit = MAX_UINT256  # Start unlimited
