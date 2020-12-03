@@ -42,6 +42,11 @@ event NewVault:
     vault: address
     api_version: String[28]
 
+event NewExperimentalVault:
+    token: indexed(address)
+    vault: address
+    api_version: String[28]
+
 
 @external
 def __init__():
@@ -136,6 +141,35 @@ def newVault(
     Vault(vault).initialize(token, msg.sender, name, symbol, guardian)
 
     self._addVault(token, vault)
+
+    return vault
+
+
+@external
+def newExperimentalVault(
+    token: address,
+    governance: address = msg.sender,
+    guardian: address = msg.sender,
+    nameOverride: String[64] = "",
+    symbolOverride: String[32] = "",
+) -> address:
+    # NOTE: Anyone can call this method, as a convenience to Strategist' experiments
+    # NOTE: Underflow if no releases created yet (this is okay)
+    release_template: address = self.releases[self.nextRelease - 1]
+    vault: address = create_forwarder_to(release_template)
+
+    name: String[64] = nameOverride
+    if name == "":
+        name = concat("Yearn ", DetailedERC20(token).name(), " Vault")
+
+    symbol: String[32] = symbolOverride
+    if symbol == "":
+        symbol = concat("yv", DetailedERC20(token).symbol())
+
+    # NOTE: Must initialize the Vault atomically with deploying it
+    Vault(vault).initialize(token, governance, name, symbol, guardian)
+
+    log NewExperimentalVault(token, vault, Vault(release_template).apiVersion())
 
     return vault
 
