@@ -8,6 +8,7 @@ interface DetailedERC20:
 interface Vault:
     def token() -> address: view
     def apiVersion() -> String[28]: view
+    def governance() -> address: view
     def initialize(
         token: address,
         governance: address,
@@ -137,3 +138,26 @@ def newVault(
     self._addVault(token, vault)
 
     return vault
+
+
+@external
+def endorseVault(vault: address):
+    assert msg.sender == self.governance  # dev: unauthorized
+    # NOTE: Underflow if no releases created yet (this is okay)
+    latest_version: String[28] = Vault(self.releases[release_id - 1]).apiVersion()
+    assert Vault(vault).apiVersion() == latest_version  # dev: not latest release
+
+    assert Vault(vault).governance() == msg.sender  # dev: unauthorized
+
+    # Check if there is an existing deployed vault for this token, and that we are not overwriting
+    # NOTE: This doesn't check for strict semver-style linearly increasing release versions
+    token: address = Vault(vault).token()
+    nextDeployment: uint256 = self.nextDeployment[token]
+    if nextDeployment > 0:
+        current_version: String[28] = Vault(self.vaults[token][nextDeployment - 1]).apiVersion()
+        assert current_version != latest_version  # dev: cannot override current version
+    # else: we are adding a new asset to the ecosystem!
+    #       (typically after a successful "experimental" vault)
+
+    # Add to the end of the list of vaults for token
+    self._addVault(token, vault)
